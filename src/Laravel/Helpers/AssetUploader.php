@@ -18,7 +18,7 @@ class AssetUploader
      * @param User $user
      * @return Asset
      */
-    public function uploadFile(UploadedFile $file, User $user = null)
+    public function uploadFile(UploadedFile $file, ?User $user = null)
     {
         $asset = $this->getAssetFromFile($file, $user);
         $this->storeAssetFile($file, $asset);
@@ -54,7 +54,7 @@ class AssetUploader
      * @param User|null $user
      * @return Asset
      */
-    public function getAssetFromFile(UploadedFile $file, User $user = null)
+    public function getAssetFromFile(UploadedFile $file, ?User $user = null)
     {
         $hash = $this->getHash($file);
 

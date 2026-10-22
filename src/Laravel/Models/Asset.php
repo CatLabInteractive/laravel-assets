@@ -10,10 +10,14 @@ use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Http\UploadedFile;
+use CatLab\Assets\Image\CircleMaskModifier;
 use Illuminate\Support\Facades\Cache;
+use Intervention\Image\Drivers\Gd\Driver as GdDriver;
+use Intervention\Image\Format;
+use Intervention\Image\ImageManager;
+use Intervention\Image\Interfaces\ImageInterface;
 use Symfony\Component\HttpFoundation\File\File;
 
-use Image;
 use Storage;
 use Config;
 
@@ -231,6 +235,15 @@ class Asset extends Model
     }
 
     /**
+     * Get the Intervention Image manager, using the driver set in assets.imageDriver.
+     * @return ImageManager
+     */
+    protected function getImageManager()
+    {
+        return new ImageManager(Config::get('assets.imageDriver', GdDriver::class));
+    }
+
+    /**
      * Get a resized variation of this image.
      * @param $width
      * @param $height
@@ -308,20 +321,14 @@ class Asset extends Model
                 $forceEncoding = null;
 
                 // Actual resize.
-                $image = Image::make($asset->getOriginalImage());
-                $image = $image->fit($width, $height);
+                $image = $asset->getImageManager()->decodeBinary($asset->getOriginalImage());
+                $image = $image->cover($width, $height);
 
                 // Apply a mask
                 switch ($shape) {
                     case AssetController::QUERY_SHAPE_CIRCLE:
-
-                        $maskImage = Image::canvas($width, $height);
-                        $maskImage->circle($width - 3, ($width / 2), ($height / 2), function ($draw) {
-                            $draw->background('#ffffff');
-                        });
-
-                        $image->mask($maskImage, true);
-                        $forceEncoding = 'png';
+                        $image->modify(new CircleMaskModifier($width - 3));
+                        $forceEncoding = Format::PNG;
                         break;
                 }
 
@@ -331,14 +338,14 @@ class Asset extends Model
                 }
 
                 if ($forceEncoding) {
-                    $encoded = $image->encode($forceEncoding);
+                    $encoded = $image->encodeUsingFormat($forceEncoding);
                 } else {
                     $encoded = $image->encode();
                 }
 
                 // put in temporary file and upload as new asset.
                 $tmpFile = tempnam(sys_get_temp_dir(), 'asset');
-                file_put_contents($tmpFile, $encoded);
+                file_put_contents($tmpFile, $encoded->toString());
 
                 // if we return a string (= a filename), getVariation will do the rest.
                 return $tmpFile;
@@ -777,7 +784,7 @@ class Asset extends Model
     }
 
     /**
-     * @param \Intervention\Image\Image $image
+     * @param ImageInterface $image
      * @param $shape
      * @param $width
      * @param $height
@@ -785,7 +792,7 @@ class Asset extends Model
      * @param $borderColor
      */
     protected function drawBorder(
-        \Intervention\Image\Image $image,
+        ImageInterface $image,
         $shape,
         $width,
         $height,
@@ -798,24 +805,24 @@ class Asset extends Model
         }
 
         $image->resizeCanvas(
-            ceil($width + ($borderWidth / 2)),
-            ceil($height + ($borderWidth / 2))
+            (int) ceil($width + ($borderWidth / 2)),
+            (int) ceil($height + ($borderWidth / 2)),
+            'rgba(255, 255, 255, 0)'
         );
 
-        $borderImage = Image::canvas(
+        $borderImage = $image->driver()->createImage(
             ($width + $borderWidth),
             ($height + $borderWidth)
         );
 
-        $borderImage->circle(
-            $width - $borderWidth,
-            floor(($width + $borderWidth * 0.5) / 2),
-            floor(($height + $borderWidth * 0.5) / 2),
-            function ($draw) use ($borderWidth, $borderColor) {
-
-                $draw->border($borderWidth, $borderColor);
-
-            });
+        $borderImage->drawCircle(function ($circle) use ($width, $height, $borderWidth, $borderColor) {
+            $circle->diameter($width - $borderWidth);
+            $circle->at(
+                (int) floor(($width + $borderWidth * 0.5) / 2),
+                (int) floor(($height + $borderWidth * 0.5) / 2)
+            );
+            $circle->border($borderColor, $borderWidth);
+        });
 
         $image->insert($borderImage);
 

@@ -168,6 +168,19 @@ class AssetController
     }
 
     /**
+     * Read a camelCase query parameter, falling back to its lowercase
+     * spelling: Chrome's address bar autocompletes ?borderWidth=2 to a
+     * ?borderwidth=2 from its history (history matching ignores case).
+     * @param string $name
+     * @param mixed $default
+     * @return mixed
+     */
+    protected function getQueryParameter($name, $default = null)
+    {
+        return Request::input($name, Request::input(strtolower($name), $default));
+    }
+
+    /**
      * @param Asset $asset
      * @return \Illuminate\Http\Response
      * @throws \Illuminate\Contracts\Filesystem\FileNotFoundException
@@ -177,8 +190,8 @@ class AssetController
         $shape = Request::input(self::QUERY_PARAM_SHAPE);
         $refresh = Request::input(self::QUERY_PARAM_CACHE) === '0';
 
-        $borderWidth = Request::input(self::QUERY_PARAM_BORDER_WIDTH);
-        $borderColor = Request::input(self::QUERY_PARAM_BORDER_COLOR);
+        $borderWidth = $this->getQueryParameter(self::QUERY_PARAM_BORDER_WIDTH);
+        $borderColor = $this->getQueryParameter(self::QUERY_PARAM_BORDER_COLOR);
         if ($borderColor && !Str::startsWith($borderColor, '#')) {
             $borderColor = '#' . $borderColor;
         }

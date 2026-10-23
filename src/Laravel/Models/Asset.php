@@ -13,8 +13,10 @@ use Illuminate\Http\UploadedFile;
 use CatLab\Assets\Image\CircleMaskModifier;
 use Illuminate\Support\Facades\Cache;
 use Intervention\Image\Drivers\Gd\Driver as GdDriver;
+use Intervention\Image\Encoders\AutoEncoder;
 use Intervention\Image\Format;
 use Intervention\Image\ImageManager;
+use Intervention\Image\Interfaces\EncodedImageInterface;
 use Intervention\Image\Interfaces\ImageInterface;
 use Symfony\Component\HttpFoundation\File\File;
 
@@ -33,6 +35,12 @@ class Asset extends Model
     const STORAGE_DISK = 'local';
 
     const CACHE_LIFETIME = 60*60*24*365;
+
+    /**
+     * JPEG / WebP quality of generated variations: intervention/image 2's
+     * default. Version 4 defaults to 75, visibly worse.
+     */
+    const ENCODE_QUALITY = 90;
 
     // How long before a lock expires?
     const VARIATION_LOCK_EXPIRE = 30;
@@ -337,11 +345,7 @@ class Asset extends Model
                     $asset->drawBorder($image, $shape, $width, $height, $borderWidth, $borderColor);
                 }
 
-                if ($forceEncoding) {
-                    $encoded = $image->encodeUsingFormat($forceEncoding);
-                } else {
-                    $encoded = $image->encode();
-                }
+                $encoded = self::encodeImage($image, $forceEncoding);
 
                 // put in temporary file and upload as new asset.
                 $tmpFile = tempnam(sys_get_temp_dir(), 'asset');
@@ -353,6 +357,22 @@ class Asset extends Model
         );
 
         return $variation->asset;
+    }
+
+    /**
+     * Encode in the source format, or in $format, at ENCODE_QUALITY (formats
+     * without a quality, such as PNG, ignore it).
+     * @param ImageInterface $image
+     * @param Format|null $format
+     * @return EncodedImageInterface
+     */
+    public static function encodeImage(ImageInterface $image, ?Format $format = null)
+    {
+        if ($format) {
+            return $image->encodeUsingFormat($format, quality: self::ENCODE_QUALITY);
+        }
+
+        return $image->encode(new AutoEncoder(quality: self::ENCODE_QUALITY));
     }
 
     /**

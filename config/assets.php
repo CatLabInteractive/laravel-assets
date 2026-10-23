@@ -11,6 +11,9 @@ return [
 
     'disk' => env('ASSETS_DISK', 'local'),
 
+    // Intervention Image driver (\Intervention\Image\Drivers\Imagick\Driver::class to use Imagick)
+    'imageDriver' => \Intervention\Image\Drivers\Gd\Driver::class,
+
     'route' => [
 
         'prefix' => 'assets',

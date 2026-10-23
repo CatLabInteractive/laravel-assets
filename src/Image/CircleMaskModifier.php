@@ -100,7 +100,8 @@ class CircleMaskModifier implements ModifierInterface
         $draw->circle($width / 2, $height / 2, $width / 2 + $this->diameter / 2, $height / 2);
         $mask->drawImage($draw);
 
-        $native->setImageAlphaChannel(\Imagick::ALPHACHANNEL_ACTIVATE);
+        // SET (unlike ACTIVATE) initializes a missing alpha channel as opaque and keeps an existing one.
+        $native->setImageAlphaChannel(\Imagick::ALPHACHANNEL_SET);
         $native->compositeImage($mask, \Imagick::COMPOSITE_DSTIN, 0, 0);
 
         $mask->destroy();
